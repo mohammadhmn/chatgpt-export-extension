@@ -22,4 +22,4 @@ ChatGPT Chat Exporter is a browser extension that helps you export chats from th
 
 ## Contact
 
-Contact: (add your support email or URL here before publishing)
+For support, please open an issue in this repository.

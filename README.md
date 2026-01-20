@@ -2,6 +2,8 @@
 
 This is a MV3 Chrome extension that injects an exporter into the active ChatGPT tab and downloads JSON files named by chat title.
 
+This project is not affiliated with OpenAI. “ChatGPT” is a trademark of OpenAI.
+
 ## Install (unpacked)
 
 1. Open Chrome and go to `chrome://extensions`
@@ -37,6 +39,14 @@ Open the extension’s **Options** page (from the popup) to configure:
 
 - It exports chats that are currently present in the sidebar list (scrolling in the sidebar loads more; the script also tries to scroll to load more).
 - It uses DOM selectors and may need updates if ChatGPT’s UI changes.
+
+## Support
+
+Please open an issue in this repository.
+
+## Contributing
+
+See `CONTRIBUTING.md`.
 
 ## Publishing checklist
 

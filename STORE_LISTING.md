@@ -17,8 +17,8 @@ How it works:
 Notes:
 - Exports are created locally in your browser as JSON downloads.
 - You may need to allow multiple downloads in Chrome for chatgpt.com.
+- Optional: download a single ZIP file containing one JSON per chat.
 - This extension is not affiliated with OpenAI.
 
 ## Privacy policy
 Use `PRIVACY.md` as the published privacy policy.
-

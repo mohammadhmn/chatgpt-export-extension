@@ -5,3 +5,17 @@
 dist/
 node_modules/
 
+# Logs
+*.log
+
+# Env / local config
+.env
+.env.*
+
+# Editor / OS
+.idea/
+.vscode/
+
+# Misc
+coverage/
+tmp/
