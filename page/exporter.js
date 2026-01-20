@@ -27,6 +27,161 @@
     URL.revokeObjectURL(url);
   };
 
+  const formatTimestamp = (date) => {
+    const pad = (n) => String(n).padStart(2, "0");
+    const y = date.getFullYear();
+    const m = pad(date.getMonth() + 1);
+    const d = pad(date.getDate());
+    const hh = pad(date.getHours());
+    const mm = pad(date.getMinutes());
+    const ss = pad(date.getSeconds());
+    return `${y}${m}${d}_${hh}${mm}${ss}`;
+  };
+
+  const makeZipFilename = (prefix) => {
+    const safePrefix = sanitizeFilename(prefix || "chatgpt_export").replace(/\.zip$/i, "");
+    return `${safePrefix}_${formatTimestamp(new Date())}.zip`;
+  };
+
+  const crc32 = (() => {
+    const table = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xedb88320 ^ (c >>> 1)) : (c >>> 1);
+      table[i] = c >>> 0;
+    }
+    return (bytes) => {
+      let c = 0xffffffff;
+      for (let i = 0; i < bytes.length; i++) c = table[(c ^ bytes[i]) & 0xff] ^ (c >>> 8);
+      return (c ^ 0xffffffff) >>> 0;
+    };
+  })();
+
+  const dosDateTime = (date) => {
+    const year = Math.max(1980, date.getFullYear());
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const seconds = date.getSeconds();
+    const dosTime = (hours << 11) | (minutes << 5) | Math.floor(seconds / 2);
+    const dosDate = ((year - 1980) << 9) | (month << 5) | day;
+    return { dosTime, dosDate };
+  };
+
+  const createZipBlob = (files, { zipComment = "" } = {}) => {
+    const encoder = new TextEncoder();
+    const now = new Date();
+    const { dosTime, dosDate } = dosDateTime(now);
+    const generalFlagUtf8 = 0x0800;
+
+    const localChunks = [];
+    const cdChunks = [];
+    const entries = [];
+    let offset = 0;
+
+    const u16 = (n) => {
+      const b = new Uint8Array(2);
+      b[0] = n & 0xff;
+      b[1] = (n >>> 8) & 0xff;
+      return b;
+    };
+    const u32 = (n) => {
+      const b = new Uint8Array(4);
+      b[0] = n & 0xff;
+      b[1] = (n >>> 8) & 0xff;
+      b[2] = (n >>> 16) & 0xff;
+      b[3] = (n >>> 24) & 0xff;
+      return b;
+    };
+
+    for (const f of files) {
+      const nameBytes = encoder.encode(f.name);
+      const dataBytes = typeof f.data === "string" ? encoder.encode(f.data) : f.data;
+      const crc = crc32(dataBytes);
+
+      const localHeader = [
+        u32(0x04034b50),
+        u16(20),
+        u16(generalFlagUtf8),
+        u16(0),
+        u16(dosTime),
+        u16(dosDate),
+        u32(crc),
+        u32(dataBytes.length),
+        u32(dataBytes.length),
+        u16(nameBytes.length),
+        u16(0),
+        nameBytes
+      ];
+
+      const localSize = localHeader.reduce((sum, b) => sum + b.length, 0) + dataBytes.length;
+      localChunks.push(...localHeader, dataBytes);
+
+      entries.push({
+        nameBytes,
+        crc,
+        size: dataBytes.length,
+        offset
+      });
+
+      offset += localSize;
+    }
+
+    const cdOffset = offset;
+    for (const e of entries) {
+      const centralHeader = [
+        u32(0x02014b50),
+        u16(20),
+        u16(20),
+        u16(generalFlagUtf8),
+        u16(0),
+        u16(dosTime),
+        u16(dosDate),
+        u32(e.crc),
+        u32(e.size),
+        u32(e.size),
+        u16(e.nameBytes.length),
+        u16(0),
+        u16(0),
+        u16(0),
+        u16(0),
+        u32(0),
+        u32(e.offset),
+        e.nameBytes
+      ];
+      cdChunks.push(...centralHeader);
+      offset += centralHeader.reduce((sum, b) => sum + b.length, 0);
+    }
+
+    const cdSize = offset - cdOffset;
+    const commentBytes = encoder.encode(zipComment);
+    const eocd = [
+      u32(0x06054b50),
+      u16(0),
+      u16(0),
+      u16(entries.length),
+      u16(entries.length),
+      u32(cdSize),
+      u32(cdOffset),
+      u16(commentBytes.length),
+      commentBytes
+    ];
+
+    return new Blob([...localChunks, ...cdChunks, ...eocd], { type: "application/zip" });
+  };
+
+  const downloadZip = (filename, blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename.endsWith(".zip") ? filename : `${filename}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const getTurns = () => Array.from(document.querySelectorAll('article[data-testid^="conversation-turn"]'));
   const hasAnyRoleElement = () => document.querySelector("[data-message-author-role]") != null;
 
@@ -235,17 +390,31 @@
   };
 
   const exportCurrentChat = async (settings) => {
+    const zipDownloads = Boolean(settings?.zipDownloads);
+    const zipPrefix = settings?.zipPrefix || "chatgpt_export";
+
     overlay.setStatus("Preparing current chat…");
     await waitForConversationReady(settings);
     const title = getCurrentChatTitleFromSidebar() || document.title || "Untitled chat";
     const messages = collectChatMessages();
     overlay.log(`Export current: ${title}`);
-    downloadJSON(`${sanitizeFilename(title)}.json`, {
+
+    const payload = {
       title,
       url: location.href,
       exportedAt: new Date().toISOString(),
       messages
-    });
+    };
+
+    if (zipDownloads) {
+      const zipName = makeZipFilename(zipPrefix);
+      const zip = createZipBlob([{ name: `${sanitizeFilename(title)}.json`, data: JSON.stringify(payload, null, 2) }]);
+      overlay.setStatus(`Downloading ZIP: ${zipName}`);
+      downloadZip(zipName, zip);
+    } else {
+      downloadJSON(`${sanitizeFilename(title)}.json`, payload);
+    }
+
     overlay.setStatus("Done.");
   };
 
@@ -254,6 +423,8 @@
     const delayMs = cfg.delayMs ?? 1500;
     const maxChats = cfg.maxChats ?? 0;
     const autoScrollSidebar = cfg.autoScrollSidebar ?? true;
+    const zipDownloads = Boolean(cfg.zipDownloads);
+    const zipPrefix = cfg.zipPrefix || "chatgpt_export";
 
     overlay.setStatus("Collecting chats from sidebar…");
     if (autoScrollSidebar) await loadAllChatsInSidebar();
@@ -265,6 +436,7 @@
     const total = maxChats > 0 ? Math.min(maxChats, chats.length) : chats.length;
     const failures = [];
     let successCount = 0;
+    const zipFiles = [];
 
     for (let i = 0; i < total; i++) {
       const { title, url } = chats[i];
@@ -297,13 +469,20 @@
 
         if (!messages.length) overlay.log(`Warning: 0 messages for "${title}"`);
 
-        overlay.setStatus(`Downloading: ${base}.json`);
-        downloadJSON(`${base}.json`, {
+        const payload = {
           title,
           url: location.href,
           exportedAt: new Date().toISOString(),
           messages
-        });
+        };
+
+        if (zipDownloads) {
+          zipFiles.push({ name: `${base}.json`, data: JSON.stringify(payload, null, 2) });
+          overlay.setStatus(`Queued: ${base}.json`);
+        } else {
+          overlay.setStatus(`Downloading: ${base}.json`);
+          downloadJSON(`${base}.json`, payload);
+        }
 
         successCount += 1;
         await sleep(delayMs);
@@ -328,6 +507,19 @@
       overlay.log(`Failed chats: ${failures.length}`);
     } else {
       overlay.setStatus(`Done. Exported ${successCount}/${total}.`);
+    }
+
+    if (zipDownloads) {
+      if (failures.length) {
+        zipFiles.push({ name: "failures.json", data: JSON.stringify(failures, null, 2) });
+      }
+
+      const zipName = makeZipFilename(zipPrefix);
+      overlay.setStatus(`Building ZIP (${zipFiles.length} files)…`);
+      const zip = createZipBlob(zipFiles);
+      overlay.setStatus(`Downloading ZIP: ${zipName}`);
+      downloadZip(zipName, zip);
+      overlay.setStatus("Done.");
     }
   };
 
@@ -354,4 +546,3 @@
     cancel
   };
 })();
-

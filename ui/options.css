@@ -117,7 +117,22 @@ h2 {
   outline: none;
 }
 
+.row input[type="text"] {
+  width: 240px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  outline: none;
+}
+
 .row input[type="number"]:focus {
+  border-color: rgba(124, 58, 237, 0.9);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
+}
+
+.row input[type="text"]:focus {
   border-color: rgba(124, 58, 237, 0.9);
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
 }

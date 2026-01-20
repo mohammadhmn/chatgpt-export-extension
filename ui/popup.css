@@ -178,7 +178,22 @@ input[type="number"] {
   outline: none;
 }
 
+input[type="text"] {
+  width: 190px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(0, 0, 0, 0.2);
+  color: var(--text);
+  outline: none;
+}
+
 input[type="number"]:focus {
+  border-color: rgba(124, 58, 237, 0.9);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
+}
+
+input[type="text"]:focus {
   border-color: rgba(124, 58, 237, 0.9);
   box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.25);
 }

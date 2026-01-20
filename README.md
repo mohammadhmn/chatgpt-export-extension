@@ -14,10 +14,14 @@ This is a MV3 Chrome extension that injects an exporter into the active ChatGPT 
 1. Go to `https://chatgpt.com/` and open any chat.
 2. Make sure the left sidebar is open and shows the **Chats** list.
 3. Click the extension icon:
-   - **Export current chat** downloads one JSON file.
-   - **Export all visible chats** iterates the currently loaded sidebar chat list and downloads one JSON per chat.
+    - **Export current chat** downloads one JSON file.
+    - **Export all visible chats** iterates the currently loaded sidebar chat list and downloads one JSON per chat.
 
 If Chrome prompts you to allow multiple downloads, allow it.
+
+## ZIP downloads
+
+By default the extension downloads a single ZIP file named like `chatgpt_export_YYYYMMDD_HHMMSS.zip`. You can change the prefix or disable ZIP mode in the popup (Quick Settings) or Options page.
 
 ## Options
 
@@ -27,6 +31,7 @@ Open the extension’s **Options** page (from the popup) to configure:
 - Max chats to export
 - Auto-scroll sidebar to load more chats
 - Load/settle timeouts
+- ZIP mode and ZIP prefix
 
 ## Notes
 

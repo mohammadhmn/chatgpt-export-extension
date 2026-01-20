@@ -11,6 +11,8 @@ const cancelBtn = document.getElementById("cancel");
 const delayMsInput = document.getElementById("delayMs");
 const maxChatsInput = document.getElementById("maxChats");
 const autoScrollSidebarInput = document.getElementById("autoScrollSidebar");
+const zipDownloadsInput = document.getElementById("zipDownloads");
+const zipPrefixInput = document.getElementById("zipPrefix");
 const saveSettingsBtn = document.getElementById("save-settings");
 const openOptionsBtn = document.getElementById("open-options");
 
@@ -46,10 +48,16 @@ const readFormSettings = () => {
     return Number.isFinite(n) ? n : fallback;
   };
 
+  const prefix = (zipPrefixInput.value || DEFAULTS.zipPrefix).trim() || DEFAULTS.zipPrefix;
+  // Keep filenames safe-ish even if user types odd characters.
+  const safePrefix = prefix.replace(/[\/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_");
+
   return {
     delayMs: Math.max(0, asInt(delayMsInput.value, DEFAULTS.delayMs)),
     maxChats: Math.max(0, asInt(maxChatsInput.value, DEFAULTS.maxChats)),
     autoScrollSidebar: Boolean(autoScrollSidebarInput.checked),
+    zipDownloads: Boolean(zipDownloadsInput.checked),
+    zipPrefix: safePrefix,
     timeoutMs: DEFAULTS.timeoutMs,
     settleMs: DEFAULTS.settleMs,
     maxSettleWaitMs: DEFAULTS.maxSettleWaitMs
@@ -60,6 +68,8 @@ const applyFormSettings = (settings) => {
   delayMsInput.value = String(settings.delayMs);
   maxChatsInput.value = String(settings.maxChats);
   autoScrollSidebarInput.checked = Boolean(settings.autoScrollSidebar);
+  zipDownloadsInput.checked = Boolean(settings.zipDownloads);
+  zipPrefixInput.value = String(settings.zipPrefix || DEFAULTS.zipPrefix);
 };
 
 const setButtonsEnabled = (enabled) => {

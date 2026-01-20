@@ -7,6 +7,7 @@ window.ChatGPTChatExporterDefaults = {
   autoScrollSidebar: true,
   timeoutMs: 45000,
   settleMs: 1500,
-  maxSettleWaitMs: 8000
+  maxSettleWaitMs: 8000,
+  zipDownloads: true,
+  zipPrefix: "chatgpt_export"
 };
-

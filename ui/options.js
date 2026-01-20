@@ -8,6 +8,8 @@ const els = {
   delayMs: byId("delayMs"),
   maxChats: byId("maxChats"),
   autoScrollSidebar: byId("autoScrollSidebar"),
+  zipDownloads: byId("zipDownloads"),
+  zipPrefix: byId("zipPrefix"),
   timeoutMs: byId("timeoutMs"),
   settleMs: byId("settleMs"),
   maxSettleWaitMs: byId("maxSettleWaitMs"),
@@ -25,6 +27,8 @@ const load = async () => {
   els.delayMs.value = String(stored.delayMs);
   els.maxChats.value = String(stored.maxChats);
   els.autoScrollSidebar.checked = Boolean(stored.autoScrollSidebar);
+  els.zipDownloads.checked = Boolean(stored.zipDownloads);
+  els.zipPrefix.value = String(stored.zipPrefix || DEFAULTS.zipPrefix);
   els.timeoutMs.value = String(stored.timeoutMs);
   els.settleMs.value = String(stored.settleMs);
   els.maxSettleWaitMs.value = String(stored.maxSettleWaitMs);
@@ -36,10 +40,15 @@ const readForm = () => {
     return Number.isFinite(n) ? n : 0;
   };
 
+  const prefix = (els.zipPrefix.value || DEFAULTS.zipPrefix).trim() || DEFAULTS.zipPrefix;
+  const safePrefix = prefix.replace(/[\/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_");
+
   return {
     delayMs: Math.max(0, asInt(els.delayMs)),
     maxChats: Math.max(0, asInt(els.maxChats)),
     autoScrollSidebar: Boolean(els.autoScrollSidebar.checked),
+    zipDownloads: Boolean(els.zipDownloads.checked),
+    zipPrefix: safePrefix,
     timeoutMs: Math.max(1000, asInt(els.timeoutMs)),
     settleMs: Math.max(0, asInt(els.settleMs)),
     maxSettleWaitMs: Math.max(0, asInt(els.maxSettleWaitMs))
