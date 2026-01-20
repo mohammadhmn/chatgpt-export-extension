@@ -3,48 +3,66 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Chat Export</title>
-    <style>
-      body {
-        font: 13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-        margin: 12px;
-        width: 320px;
-      }
-      button {
-        width: 100%;
-        padding: 10px 12px;
-        border: 1px solid #ddd;
-        border-radius: 10px;
-        background: #fff;
-        cursor: pointer;
-        margin-top: 8px;
-      }
-      button:hover {
-        background: #f6f6f6;
-      }
-      .muted {
-        color: #666;
-        margin-top: 10px;
-        font-size: 12px;
-      }
-      .error {
-        color: #b00020;
-        margin-top: 10px;
-        white-space: pre-wrap;
-      }
-    </style>
+    <title>ChatGPT Export</title>
+    <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <div>
-      <strong>ChatGPT Export</strong>
-      <div class="muted">Open a chat on chatgpt.com with the left sidebar visible.</div>
-      <button id="export-current">Export current chat</button>
-      <button id="export-visible">Export all visible chats</button>
-      <button id="cancel" title="Stops the current export run">Cancel export</button>
-      <button id="open-options" title="Configure delays and limits">Options</button>
-      <div id="status" class="muted"></div>
-      <div id="error" class="error"></div>
-    </div>
+    <header class="header">
+      <div class="brand">
+        <img class="brand-icon" src="../icons/icon48.png" alt="" />
+        <div class="brand-text">
+          <div class="brand-title">ChatGPT Chat Exporter</div>
+          <div id="context" class="brand-subtitle">Open a chat on chatgpt.com</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content">
+      <section class="card">
+        <div class="card-title">Export</div>
+        <button id="export-current" class="btn primary">Export current chat</button>
+        <button id="export-visible" class="btn">Export visible chats</button>
+        <div class="hint">Chrome may ask you to allow multiple downloads for chatgpt.com.</div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">Quick Settings</div>
+
+        <label class="row">
+          <span class="label">Delay between chats</span>
+          <span class="field">
+            <input id="delayMs" type="number" min="0" step="100" />
+            <span class="unit">ms</span>
+          </span>
+        </label>
+
+        <label class="row">
+          <span class="label">Max chats</span>
+          <span class="field">
+            <input id="maxChats" type="number" min="0" step="1" />
+            <span class="unit">0 = all</span>
+          </span>
+        </label>
+
+        <label class="row checkbox">
+          <input id="autoScrollSidebar" type="checkbox" />
+          <span>Auto-scroll sidebar to load more chats</span>
+        </label>
+
+        <div class="actions">
+          <button id="save-settings" class="btn small">Save settings</button>
+          <button id="open-options" class="btn small ghost" title="More settings">Options</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-title">Run Control</div>
+        <button id="cancel" class="btn danger" title="Stops the current export run">Cancel export</button>
+        <div id="status" class="status"></div>
+        <div id="error" class="error"></div>
+      </section>
+    </main>
+
     <script src="../shared/defaults.js"></script>
     <script src="popup.js"></script>
   </body>

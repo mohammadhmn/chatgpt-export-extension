@@ -8,11 +8,22 @@
   </head>
   <body>
     <main>
-      <h1>ChatGPT Chat Exporter</h1>
-      <p class="muted">These settings are applied when you start an export from the extension popup.</p>
+      <header class="top">
+        <div class="top-left">
+          <img class="icon" src="../icons/icon48.png" alt="" />
+          <div>
+            <h1>ChatGPT Chat Exporter</h1>
+            <p class="muted">Tweak export speed and loading behavior.</p>
+          </div>
+        </div>
+        <div class="top-right">
+          <a class="link" href="../PRIVACY.md" target="_blank" rel="noreferrer">Privacy</a>
+        </div>
+      </header>
 
       <section class="card">
         <h2>Export Settings</h2>
+        <p class="help">These control how many chats are exported and how long to wait between downloads.</p>
 
         <label class="row">
           <span>Delay between chats (ms)</span>
@@ -32,6 +43,7 @@
 
       <section class="card">
         <h2>Loading/Wait Settings</h2>
+        <p class="help">If you export empty files, increase the timeout. If exports feel slow, reduce settle time.</p>
 
         <label class="row">
           <span>Per-chat timeout (ms)</span>
@@ -51,7 +63,7 @@
 
       <section class="actions">
         <button id="save" class="primary">Save</button>
-        <button id="reset" class="secondary" type="button">Reset to defaults</button>
+        <button id="reset" class="secondary" type="button">Reset</button>
         <span id="status" class="muted"></span>
       </section>
     </main>
