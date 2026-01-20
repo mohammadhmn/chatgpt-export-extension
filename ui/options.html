@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ChatGPT Chat Exporter — Options</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <h1>ChatGPT Chat Exporter</h1>
+      <p class="muted">These settings are applied when you start an export from the extension popup.</p>
+
+      <section class="card">
+        <h2>Export Settings</h2>
+
+        <label class="row">
+          <span>Delay between chats (ms)</span>
+          <input id="delayMs" type="number" min="0" step="100" />
+        </label>
+
+        <label class="row">
+          <span>Max chats (0 = all loaded)</span>
+          <input id="maxChats" type="number" min="0" step="1" />
+        </label>
+
+        <label class="row checkbox">
+          <input id="autoScrollSidebar" type="checkbox" />
+          <span>Auto-scroll sidebar to load more chats</span>
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>Loading/Wait Settings</h2>
+
+        <label class="row">
+          <span>Per-chat timeout (ms)</span>
+          <input id="timeoutMs" type="number" min="1000" step="1000" />
+        </label>
+
+        <label class="row">
+          <span>Settle time (ms)</span>
+          <input id="settleMs" type="number" min="0" step="100" />
+        </label>
+
+        <label class="row">
+          <span>Max settle wait (ms)</span>
+          <input id="maxSettleWaitMs" type="number" min="0" step="100" />
+        </label>
+      </section>
+
+      <section class="actions">
+        <button id="save" class="primary">Save</button>
+        <button id="reset" class="secondary" type="button">Reset to defaults</button>
+        <span id="status" class="muted"></span>
+      </section>
+    </main>
+
+    <script src="../shared/defaults.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

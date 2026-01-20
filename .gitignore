@@ -1,0 +1,7 @@
+.DS_Store
+*.zip
+*.crx
+*.pem
+dist/
+node_modules/
+

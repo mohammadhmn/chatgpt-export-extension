@@ -1,0 +1,51 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat Export</title>
+    <style>
+      body {
+        font: 13px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        margin: 12px;
+        width: 320px;
+      }
+      button {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        background: #fff;
+        cursor: pointer;
+        margin-top: 8px;
+      }
+      button:hover {
+        background: #f6f6f6;
+      }
+      .muted {
+        color: #666;
+        margin-top: 10px;
+        font-size: 12px;
+      }
+      .error {
+        color: #b00020;
+        margin-top: 10px;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <strong>ChatGPT Export</strong>
+      <div class="muted">Open a chat on chatgpt.com with the left sidebar visible.</div>
+      <button id="export-current">Export current chat</button>
+      <button id="export-visible">Export all visible chats</button>
+      <button id="cancel" title="Stops the current export run">Cancel export</button>
+      <button id="open-options" title="Configure delays and limits">Options</button>
+      <div id="status" class="muted"></div>
+      <div id="error" class="error"></div>
+    </div>
+    <script src="../shared/defaults.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
