@@ -1,8 +1,16 @@
 (() => {
+  "use strict";
+
   const CANCEL_KEY = "__chatgptChatExporterCancel";
   const RUNNING_KEY = "__chatgptChatExporterRunning";
 
+  const TURN_SELECTOR = 'article[data-testid^="conversation-turn"]';
+  const ROLE_SELECTOR = "[data-message-author-role]";
+
+  const SIDEBAR_ROOT_SELECTORS = ["#history", 'nav[aria-label="Chat history"]', 'nav[aria-label*="history"]'];
+
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const now = () => Date.now();
 
   const sanitizeFilename = (name) => {
     const cleaned = (name || "Untitled chat")
@@ -13,29 +21,17 @@
     return cleaned || "Untitled chat";
   };
 
-  const downloadJSON = (filename, data) => {
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename.endsWith(".json") ? filename : `${filename}.json`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
   const formatTimestamp = (date) => {
     const pad = (n) => String(n).padStart(2, "0");
-    const y = date.getFullYear();
-    const m = pad(date.getMonth() + 1);
-    const d = pad(date.getDate());
-    const hh = pad(date.getHours());
-    const mm = pad(date.getMinutes());
-    const ss = pad(date.getSeconds());
-    return `${y}${m}${d}_${hh}${mm}${ss}`;
+    return [
+      date.getFullYear(),
+      pad(date.getMonth() + 1),
+      pad(date.getDate()),
+      "_",
+      pad(date.getHours()),
+      pad(date.getMinutes()),
+      pad(date.getSeconds())
+    ].join("");
   };
 
   const makeZipFilename = (prefix) => {
@@ -43,6 +39,30 @@
     return `${safePrefix}_${formatTimestamp(new Date())}.zip`;
   };
 
+  const downloadBlob = (filename, blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadJSON = (filename, data) => {
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const name = filename.endsWith(".json") ? filename : `${filename}.json`;
+    downloadBlob(name, blob);
+  };
+
+  const downloadZip = (filename, blob) => {
+    const name = filename.endsWith(".zip") ? filename : `${filename}.zip`;
+    downloadBlob(name, blob);
+  };
+
+  // ZIP (store-only, no compression)
   const crc32 = (() => {
     const table = new Uint32Array(256);
     for (let i = 0; i < 256; i++) {
@@ -71,33 +91,21 @@
 
   const createZipBlob = (files, { zipComment = "" } = {}) => {
     const encoder = new TextEncoder();
-    const now = new Date();
-    const { dosTime, dosDate } = dosDateTime(now);
+    const { dosTime, dosDate } = dosDateTime(new Date());
     const generalFlagUtf8 = 0x0800;
+
+    const u16 = (n) => new Uint8Array([n & 0xff, (n >>> 8) & 0xff]);
+    const u32 = (n) =>
+      new Uint8Array([n & 0xff, (n >>> 8) & 0xff, (n >>> 16) & 0xff, (n >>> 24) & 0xff]);
 
     const localChunks = [];
     const cdChunks = [];
     const entries = [];
     let offset = 0;
 
-    const u16 = (n) => {
-      const b = new Uint8Array(2);
-      b[0] = n & 0xff;
-      b[1] = (n >>> 8) & 0xff;
-      return b;
-    };
-    const u32 = (n) => {
-      const b = new Uint8Array(4);
-      b[0] = n & 0xff;
-      b[1] = (n >>> 8) & 0xff;
-      b[2] = (n >>> 16) & 0xff;
-      b[3] = (n >>> 24) & 0xff;
-      return b;
-    };
-
-    for (const f of files) {
-      const nameBytes = encoder.encode(f.name);
-      const dataBytes = typeof f.data === "string" ? encoder.encode(f.data) : f.data;
+    for (const file of files) {
+      const nameBytes = encoder.encode(file.name);
+      const dataBytes = typeof file.data === "string" ? encoder.encode(file.data) : file.data;
       const crc = crc32(dataBytes);
 
       const localHeader = [
@@ -115,17 +123,12 @@
         nameBytes
       ];
 
-      const localSize = localHeader.reduce((sum, b) => sum + b.length, 0) + dataBytes.length;
+      let localHeaderSize = 0;
+      for (const b of localHeader) localHeaderSize += b.length;
       localChunks.push(...localHeader, dataBytes);
 
-      entries.push({
-        nameBytes,
-        crc,
-        size: dataBytes.length,
-        offset
-      });
-
-      offset += localSize;
+      entries.push({ nameBytes, crc, size: dataBytes.length, offset });
+      offset += localHeaderSize + dataBytes.length;
     }
 
     const cdOffset = offset;
@@ -150,8 +153,9 @@
         u32(e.offset),
         e.nameBytes
       ];
+
       cdChunks.push(...centralHeader);
-      offset += centralHeader.reduce((sum, b) => sum + b.length, 0);
+      for (const b of centralHeader) offset += b.length;
     }
 
     const cdSize = offset - cdOffset;
@@ -171,19 +175,7 @@
     return new Blob([...localChunks, ...cdChunks, ...eocd], { type: "application/zip" });
   };
 
-  const downloadZip = (filename, blob) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename.endsWith(".zip") ? filename : `${filename}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
-  const getTurns = () => Array.from(document.querySelectorAll('article[data-testid^="conversation-turn"]'));
-  const hasAnyRoleElement = () => document.querySelector("[data-message-author-role]") != null;
+  const isCanceled = () => Boolean(window[CANCEL_KEY]);
 
   const ensureOverlay = () => {
     const id = "chatgpt-chat-exporter-overlay";
@@ -238,9 +230,7 @@
     });
 
     const hideBtn = document.getElementById(`${id}-hide`);
-    hideBtn?.addEventListener("click", () => {
-      root.remove();
-    });
+    hideBtn?.addEventListener("click", () => root.remove());
 
     return root;
   };
@@ -269,84 +259,99 @@
     }
   };
 
-  const isCanceled = () => Boolean(window[CANCEL_KEY]);
+  const getTurnCount = () => document.querySelectorAll(TURN_SELECTOR).length;
+  const hasAnyRoleElement = () => document.querySelector(ROLE_SELECTOR) != null;
 
   const waitForConversationReady = async ({
     timeoutMs = 45000,
     settleMs = 1500,
     maxSettleWaitMs = 8000
   } = {}) => {
-    const start = Date.now();
-    const timedOut = () => Date.now() - start > timeoutMs;
+    const start = now();
+    const timedOut = () => now() - start > timeoutMs;
 
-    while (getTurns().length === 0 || !hasAnyRoleElement()) {
+    while (getTurnCount() === 0 || !hasAnyRoleElement()) {
       if (isCanceled()) throw new Error("Canceled.");
       if (timedOut()) throw new Error("Timed out waiting for conversation to render.");
       await sleep(200);
     }
 
-    const settleStart = Date.now();
-    let lastChangeAt = Date.now();
-    let lastCount = getTurns().length;
+    // Wait for UI to "settle" (turn count and pathname stabilize briefly).
+    const settleStart = now();
+    let lastChangeAt = now();
+    let lastCount = getTurnCount();
     let lastPath = location.pathname;
 
-    while (Date.now() - lastChangeAt < settleMs) {
+    while (now() - lastChangeAt < settleMs) {
       if (isCanceled()) throw new Error("Canceled.");
       if (timedOut()) break;
-      if (Date.now() - settleStart > maxSettleWaitMs) break;
+      if (now() - settleStart > maxSettleWaitMs) break;
 
       await sleep(250);
 
-      const count = getTurns().length;
+      const count = getTurnCount();
       const path = location.pathname;
       if (count !== lastCount || path !== lastPath) {
         lastCount = count;
         lastPath = path;
-        lastChangeAt = Date.now();
+        lastChangeAt = now();
       }
     }
   };
 
   const collectChatMessages = () => {
-    const turns = getTurns();
-    const messages = Array.from(turns).map((turn, index) => {
-      const roleEl = turn.querySelector("[data-message-author-role]");
+    const turns = document.querySelectorAll(TURN_SELECTOR);
+    const roleLabelMap = { user: "User", assistant: "Assistant", system: "System" };
+    const messages = [];
+
+    for (let index = 0; index < turns.length; index++) {
+      const turn = turns[index];
+      const roleEl = turn.querySelector(ROLE_SELECTOR);
       const role =
         roleEl?.dataset?.messageAuthorRole ||
         roleEl?.getAttribute("data-message-author-role") ||
         "unknown";
 
-      const roleLabelMap = { user: "User", assistant: "Assistant", system: "System" };
       const author = roleLabelMap[role] || role;
 
-      const textCandidates = turn.querySelectorAll(
-        '[data-testid="text-message"], p, li, pre code, .markdown'
-      );
+      // Prefer a single "content root" to avoid scanning lots of descendants.
+      const content =
+        turn.querySelector(".markdown") ||
+        turn.querySelector('[data-testid="text-message"]') ||
+        turn;
 
-      let text = Array.from(textCandidates)
-        .map((el) => el.innerText?.trim?.() || "")
-        .filter(Boolean)
-        .join("\n\n");
+      const text = (content.innerText || "").trim();
+      if (!text) continue;
+      messages.push({ index, author, role, text });
+    }
 
-      if (!text) text = turn.innerText?.trim?.() || "";
-
-      return { index, author, role, text };
-    });
-
-    return messages.filter((m) => m.text && m.text.trim().length > 0);
+    return messages;
   };
 
-  const getSidebarScroller = () => document.querySelector('nav[aria-label="Chat history"]');
+  const getSidebarRoot = () => {
+    for (const sel of SIDEBAR_ROOT_SELECTORS) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    return null;
+  };
+
+  const getSidebarScroller = () => {
+    // Prefer an explicitly labeled nav scroller, fall back to sidebar root.
+    return document.querySelector('nav[aria-label="Chat history"]') || getSidebarRoot();
+  };
 
   const getSidebarChats = () => {
-    const links = Array.from(document.querySelectorAll('#history a.AsOkList[href^="/c/"]'));
+    const root = getSidebarRoot();
+    if (!root) return [];
+
+    const links = Array.from(root.querySelectorAll('a[href^="/c/"]'));
     const seen = new Set();
     const chats = [];
 
     for (const a of links) {
       const href = a.getAttribute("href");
       if (!href) continue;
-
       const url = new URL(href, location.origin).toString();
       if (seen.has(url)) continue;
       seen.add(url);
@@ -365,28 +370,74 @@
     if (!scroller) return;
 
     let lastCount = -1;
-    for (let i = 0; i < 120; i++) {
+    let lastScrollTop = -1;
+
+    for (let i = 0; i < 140; i++) {
       if (isCanceled()) throw new Error("Canceled.");
+
       const count = getSidebarChats().length;
-      if (count === lastCount) break;
+      if (count === lastCount && scroller.scrollTop === lastScrollTop) break;
+
       lastCount = count;
+      lastScrollTop = scroller.scrollTop;
+
       scroller.scrollTop = scroller.scrollHeight;
-      await sleep(500);
+      await sleep(450);
     }
   };
 
-  const clickChatByUrl = async (url) => {
+  const clickChatByUrl = (url) => {
+    const root = getSidebarRoot();
+    if (!root) throw new Error("Sidebar not found. Make sure the left sidebar is open.");
+
     const path = new URL(url).pathname;
-    const a = document.querySelector(`#history a.AsOkList[href="${CSS.escape(path)}"]`);
+    const a = root.querySelector(`a[href="${CSS.escape(path)}"]`);
     if (!a) throw new Error(`Could not find chat link in sidebar for ${path}`);
     a.scrollIntoView({ block: "center" });
     a.click();
   };
 
+  const waitForPathname = async (pathname, timeoutMs = 20000) => {
+    const start = now();
+    while (location.pathname !== pathname) {
+      if (isCanceled()) throw new Error("Canceled.");
+      if (now() - start > timeoutMs) break;
+      await sleep(80);
+    }
+  };
+
   const getCurrentChatTitleFromSidebar = () => {
-    const active = document.querySelector("#history a.AsOkList[data-active]") || null;
+    const root = getSidebarRoot();
+    if (!root) return null;
+    const active = root.querySelector('a[data-active], a[aria-current="page"]') || null;
     if (!active) return null;
     return (active.querySelector('span[dir="auto"]')?.innerText || active.innerText || "").trim() || null;
+  };
+
+  const buildPayload = (title) => ({
+    title,
+    url: location.href,
+    exportedAt: new Date().toISOString(),
+    messages: collectChatMessages()
+  });
+
+  const exportOne = ({ title, zipDownloads, zipPrefix, zipFiles, usedNames }) => {
+    let base = sanitizeFilename(title);
+    const n = (usedNames.get(base) || 0) + 1;
+    usedNames.set(base, n);
+    if (n > 1) base = `${base} (${n})`;
+
+    const payload = buildPayload(title);
+    if (!payload.messages.length) overlay.log(`Warning: 0 messages for "${title}"`);
+
+    if (zipDownloads) {
+      zipFiles.push({ name: `${base}.json`, data: JSON.stringify(payload, null, 2) });
+      overlay.setStatus(`Queued: ${base}.json`);
+      return;
+    }
+
+    overlay.setStatus(`Downloading: ${base}.json`);
+    downloadJSON(`${base}.json`, payload);
   };
 
   const exportCurrentChat = async (settings) => {
@@ -395,20 +446,17 @@
 
     overlay.setStatus("Preparing current chat…");
     await waitForConversationReady(settings);
+
     const title = getCurrentChatTitleFromSidebar() || document.title || "Untitled chat";
-    const messages = collectChatMessages();
     overlay.log(`Export current: ${title}`);
 
-    const payload = {
-      title,
-      url: location.href,
-      exportedAt: new Date().toISOString(),
-      messages
-    };
+    const payload = buildPayload(title);
 
     if (zipDownloads) {
       const zipName = makeZipFilename(zipPrefix);
-      const zip = createZipBlob([{ name: `${sanitizeFilename(title)}.json`, data: JSON.stringify(payload, null, 2) }]);
+      const zip = createZipBlob([
+        { name: `${sanitizeFilename(title)}.json`, data: JSON.stringify(payload, null, 2) }
+      ]);
       overlay.setStatus(`Downloading ZIP: ${zipName}`);
       downloadZip(zipName, zip);
     } else {
@@ -430,13 +478,15 @@
     if (autoScrollSidebar) await loadAllChatsInSidebar();
 
     const chats = getSidebarChats();
-    if (!chats.length) throw new Error("No chats found in sidebar. Make sure the sidebar is open and Chats are visible.");
+    if (!chats.length) {
+      throw new Error("No chats found in sidebar. Make sure the sidebar is open and Chats are visible.");
+    }
 
-    const usedNames = new Map();
     const total = maxChats > 0 ? Math.min(maxChats, chats.length) : chats.length;
+    const usedNames = new Map();
     const failures = [];
-    let successCount = 0;
     const zipFiles = [];
+    let successCount = 0;
 
     for (let i = 0; i < total; i++) {
       const { title, url } = chats[i];
@@ -449,41 +499,10 @@
       if (isCanceled()) break;
 
       try {
-        await clickChatByUrl(url);
-
-        const start = Date.now();
-        while (location.pathname !== targetPath) {
-          if (isCanceled()) throw new Error("Canceled.");
-          if (Date.now() - start > 20000) break;
-          await sleep(100);
-        }
-
+        clickChatByUrl(url);
+        await waitForPathname(targetPath, 20000);
         await waitForConversationReady(settings);
-
-        const messages = collectChatMessages();
-
-        let base = sanitizeFilename(title);
-        const num = (usedNames.get(base) || 0) + 1;
-        usedNames.set(base, num);
-        if (num > 1) base = `${base} (${num})`;
-
-        if (!messages.length) overlay.log(`Warning: 0 messages for "${title}"`);
-
-        const payload = {
-          title,
-          url: location.href,
-          exportedAt: new Date().toISOString(),
-          messages
-        };
-
-        if (zipDownloads) {
-          zipFiles.push({ name: `${base}.json`, data: JSON.stringify(payload, null, 2) });
-          overlay.setStatus(`Queued: ${base}.json`);
-        } else {
-          overlay.setStatus(`Downloading: ${base}.json`);
-          downloadJSON(`${base}.json`, payload);
-        }
-
+        exportOne({ title, zipDownloads, zipPrefix, zipFiles, usedNames });
         successCount += 1;
         await sleep(delayMs);
       } catch (err) {
@@ -502,25 +521,18 @@
       return;
     }
 
-    if (failures.length) {
-      overlay.setStatus(`Done with errors. Exported ${successCount}/${total}.`);
-      overlay.log(`Failed chats: ${failures.length}`);
-    } else {
-      overlay.setStatus(`Done. Exported ${successCount}/${total}.`);
-    }
-
     if (zipDownloads) {
-      if (failures.length) {
-        zipFiles.push({ name: "failures.json", data: JSON.stringify(failures, null, 2) });
-      }
-
+      if (failures.length) zipFiles.push({ name: "failures.json", data: JSON.stringify(failures, null, 2) });
       const zipName = makeZipFilename(zipPrefix);
       overlay.setStatus(`Building ZIP (${zipFiles.length} files)…`);
-      const zip = createZipBlob(zipFiles);
-      overlay.setStatus(`Downloading ZIP: ${zipName}`);
-      downloadZip(zipName, zip);
-      overlay.setStatus("Done.");
+      downloadZip(zipName, createZipBlob(zipFiles));
+      overlay.setStatus(failures.length ? `Done with errors. Exported ${successCount}/${total}.` : `Done. Exported ${successCount}/${total}.`);
+      if (failures.length) overlay.log(`Failed chats: ${failures.length}`);
+      return;
     }
+
+    overlay.setStatus(failures.length ? `Done with errors. Exported ${successCount}/${total}.` : `Done. Exported ${successCount}/${total}.`);
+    if (failures.length) overlay.log(`Failed chats: ${failures.length}`);
   };
 
   const run = async (mode, settings) => {
@@ -541,8 +553,5 @@
     window[CANCEL_KEY] = true;
   };
 
-  window.ChatGPTChatExporter = {
-    run,
-    cancel
-  };
+  window.ChatGPTChatExporter = { run, cancel };
 })();

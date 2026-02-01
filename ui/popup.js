@@ -1,4 +1,5 @@
 /* global ChatGPTChatExporterDefaults */
+/* global ChatGPTChatExporterSettings */
 
 const statusEl = document.getElementById("status");
 const errorEl = document.getElementById("error");
@@ -15,6 +16,9 @@ const zipDownloadsInput = document.getElementById("zipDownloads");
 const zipPrefixInput = document.getElementById("zipPrefix");
 const saveSettingsBtn = document.getElementById("save-settings");
 const openOptionsBtn = document.getElementById("open-options");
+
+const SETTINGS = ChatGPTChatExporterSettings;
+const DEFAULTS = ChatGPTChatExporterDefaults;
 
 const setStatus = (msg) => {
   statusEl.textContent = msg || "";
@@ -38,44 +42,33 @@ const getActiveTab = async () => {
   return tab;
 };
 
-const DEFAULTS = ChatGPTChatExporterDefaults;
-const getSettings = async () => chrome.storage.sync.get(DEFAULTS);
-const setSettings = async (settings) => chrome.storage.sync.set(settings);
-
 const readFormSettings = () => {
-  const asInt = (value, fallback) => {
-    const n = Number.parseInt(value, 10);
-    return Number.isFinite(n) ? n : fallback;
-  };
-
-  const prefix = (zipPrefixInput.value || DEFAULTS.zipPrefix).trim() || DEFAULTS.zipPrefix;
-  // Keep filenames safe-ish even if user types odd characters.
-  const safePrefix = prefix.replace(/[\/\\?%*:|"<>]/g, "-").replace(/\s+/g, "_");
-
-  return {
-    delayMs: Math.max(0, asInt(delayMsInput.value, DEFAULTS.delayMs)),
-    maxChats: Math.max(0, asInt(maxChatsInput.value, DEFAULTS.maxChats)),
-    autoScrollSidebar: Boolean(autoScrollSidebarInput.checked),
-    zipDownloads: Boolean(zipDownloadsInput.checked),
-    zipPrefix: safePrefix,
+  return SETTINGS.normalizeSettings({
+    delayMs: delayMsInput.value,
+    maxChats: maxChatsInput.value,
+    autoScrollSidebar: autoScrollSidebarInput.checked,
+    zipDownloads: zipDownloadsInput.checked,
+    zipPrefix: zipPrefixInput.value,
+    // Popup is "quick settings": keep loading/wait settings at defaults.
     timeoutMs: DEFAULTS.timeoutMs,
     settleMs: DEFAULTS.settleMs,
     maxSettleWaitMs: DEFAULTS.maxSettleWaitMs
-  };
+  });
 };
 
 const applyFormSettings = (settings) => {
-  delayMsInput.value = String(settings.delayMs);
-  maxChatsInput.value = String(settings.maxChats);
-  autoScrollSidebarInput.checked = Boolean(settings.autoScrollSidebar);
-  zipDownloadsInput.checked = Boolean(settings.zipDownloads);
-  zipPrefixInput.value = String(settings.zipPrefix || DEFAULTS.zipPrefix);
+  const s = SETTINGS.normalizeSettings(settings);
+  delayMsInput.value = String(s.delayMs);
+  maxChatsInput.value = String(s.maxChats);
+  autoScrollSidebarInput.checked = Boolean(s.autoScrollSidebar);
+  zipDownloadsInput.checked = Boolean(s.zipDownloads);
+  zipPrefixInput.value = String(s.zipPrefix || DEFAULTS.zipPrefix);
 };
 
 const setButtonsEnabled = (enabled) => {
   exportCurrentBtn.disabled = !enabled;
   exportVisibleBtn.disabled = !enabled;
-  cancelBtn.disabled = false;
+  cancelBtn.disabled = !enabled;
   saveSettingsBtn.disabled = false;
   openOptionsBtn.disabled = false;
 };
@@ -153,7 +146,7 @@ saveSettingsBtn.addEventListener("click", async () => {
   setError("");
   setStatus("Saving settings…");
   try {
-    await setSettings(readFormSettings());
+    await SETTINGS.setSettings(readFormSettings());
     setStatus("Saved.");
     setTimeout(() => setStatus(""), 900);
   } catch (e) {
@@ -169,7 +162,7 @@ saveSettingsBtn.addEventListener("click", async () => {
   setButtonsEnabled(ok);
   contextEl.textContent = ok ? "Ready on this tab" : "Open ChatGPT on the web";
 
-  const stored = await getSettings();
+  const stored = await SETTINGS.getSettings();
   applyFormSettings(stored);
 })().catch((e) => {
   setError(String(e?.message || e));
